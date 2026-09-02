@@ -117,7 +117,7 @@ which averaging convention it intends) rather than a clear bug, since
 its measured impact here is small. Worth re-testing on the larger,
 more length-varied FLORES corpus in A3.
 
-## A1 — obtained real multilingual corpus
+## FLORES - obtained real multilingual corpus
 
 Original plan (openlanguagedata/flores_plus) was a gated dataset requiring
 HuggingFace login/terms acceptance — used Muennighoff/flores200 public
