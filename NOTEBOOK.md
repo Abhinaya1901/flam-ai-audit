@@ -24,6 +24,13 @@ After: english=1.28, hindi=7.60, ratio=5.92x.
 Effect is small (~1-2%) on this toy corpus, but will recheck on the larger corpus
 since more lines could mean more whitespace irregularities.
 
+Re-tested on the real FLORES eng/hin dev corpus (997 lines each) using
+measure_flores.py. Baseline ratio: 6.093x. After split fix: 6.094x —
+even smaller effect than on the toy corpus. This contradicts my earlier
+prediction that more lines would mean a bigger effect — more data
+actually averaged the whitespace quirk out further.
+Conclusion: real bug, but negligible in practice at any scale tested.
+
 ## Bug 2 — .lower() understates the true gap
 
 Tested removing .lower() by testing fertility_no_lower.py
@@ -36,6 +43,26 @@ capitalized words like NASA and GPU are more likely to be recognized as
 single tokens by GPT-2. The ratio actually got worse (5.89x → 6.06x),
 meaning the original report's .lower() step was understating the true
 Hindi/English gap, not the other way around.
+
+Re-tested on the real FLORES corpus (997 lines): baseline ratio 6.093x,
+no-lower ratio 6.318x. Effect held and slightly strengthened at scale.
+Conclusion: real, robust, materially important finding.
+
+## Bug 3 — chars = len(line) counts codepoints, not true characters
+
+Tested whether the tok/char denominator itself was distorted, since
+REPORT_v0 uses it as an "independent confirmation" of the tok/word finding.
+`chars = len(line)` counts Unicode codepoints, not human-perceived
+characters (graphemes). Devanagari combines base consonants with
+separate vowel-sign codepoints (matras) — tested with the `grapheme`
+library on the full hin_dev.txt corpus: 125,366 codepoints vs 87,046
+true graphemes, a ratio of 1.44x overcounting.
+Recomputed: reported hin tok/char=1.579 corresponds to a true
+tok/grapheme of ~2.274. This changes the tok/char-based ratio from the
+reported 7.0x to a corrected ~10.1x.
+This directly undermines REPORT_v0's claim that tok/char "independently
+confirms" the tok/word finding and that "no further measurement is
+needed" — the tok/char metric itself was significantly distorted.
 
 ## Checked NFC normalization — looks suspicious, but is fine
 
