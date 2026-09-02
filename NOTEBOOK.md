@@ -73,3 +73,16 @@ Flagging as a real methodological ambiguity (the script never states
 which averaging convention it intends) rather than a clear bug, since
 its measured impact here is small. Worth re-testing on the larger,
 more length-varied FLORES corpus in A3.
+
+## A1 — obtained real multilingual corpus
+
+Original plan (openlanguagedata/flores_plus) was a gated dataset requiring
+HuggingFace login/terms acceptance — used Muennighoff/flores200 public
+mirror instead (had to downgrade `datasets` library to 2.19.0 since this
+dataset uses an older loading-script format the newest library version
+no longer supports).
+Downloaded dev (997 sentences) and devtest (1012 sentences) splits for
+english, hindi, tamil, telugu.
+Verified first 3 lines by eye across all 4 files — confirmed genuinely
+parallel (same source sentence topics in same order: Stanford diagnostic
+chip, JAS 39C Gripen crash, same follow-up sentences).
