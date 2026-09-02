@@ -198,41 +198,36 @@ fewer tokens per byte than English, because it tokenizes these scripts
 efficiently. This shows byte based cost and token based cost can point
 in opposite directions depending on tokenizer quality.
 
-## A3 — Final question: which single metric should drive the decision?
+## A3 — which single number should we actually use?
 
-Comparing xlm-roberta ratios across all four denominators (word, grapheme,
-byte, sentence) shows word, grapheme, and sentence all converge on a
-similar, much smaller gap (roughly 1.0x-2.1x) once a proper multilingual
-tokenizer is used a sharp contrast to gpt2's inflated 6x-20x gaps.
-Byte is the outlier, falling *below* 1.0 for all three Indian languages.
+Looked at all four denominators using xlm-roberta. word, grapheme, and
+sentence all show a similar, small gap (around 1x-2x). byte is
+different — it goes below 1.0 for all three Indic languages.
 
-Considered which single number to recommend:
-- tok/word: disqualified despite looking reasonable here — already
-  proved (conceptual bug, A2) that "word" isn't a fair, language-neutral
-  unit in principle. Using it here just because the number happens to
-  look convenient would be inconsistent with that earlier finding.
-- tok/grapheme: principled (uses true character counts, not the
-  overcounted codepoints from bug 3) and gives a similar, consistent
-  answer. Strong second choice.
-- tok/byte: actively misleading here — it measures Unicode encoding
-  overhead (how many bytes a script needs to store one character), not
-  processing cost. Disagrees with the other three metrics because it's
-  measuring a genuinely different thing (storage/transfer cost, not
-  compute cost).
-- tok/sentence: chosen as the headline metric. Since the corpus is a
-  professionally translated, truly parallel set (same content, sentence-
-  for-sentence, across all languages), this metric sidesteps the entire
-  "what counts as a fair word/character" debate — it directly answers
-  "for saying the same thing, how many tokens does each language need?"
-  with no assumptions about linguistic units required.
+Decided which one to actually use:
+- word: not using this. we already proved earlier (in A2) that "word"
+  is not a fair way to compare languages, so even though it looks fine
+  here, it would be wrong to suddenly trust it now.
+- grapheme: this is fine to use, gives a similar answer to word and
+  sentence.
+- byte: not using this as the main number. byte measures how much
+  storage space the text takes up, not how much work the model has to
+  do. that's why it's giving a different answer than the others.
+- sentence: this is the one I'm picking as the main number. since our
+  corpus has the exact same sentence translated into every language, we
+  don't need to argue about what counts as a fair "word" or "character"
+  — we can just directly compare: same sentence, how many tokens does
+  each language need?
 
-**Conclusion:** with xlm-roberta, tok/sentence ratios vs English are
-hin=1.25x, tam=1.35x, tel=1.32x. Recommend reporting this as the
-headline number, with grapheme and word ratios cited as supporting/
-convergent evidence, and byte explicitly flagged as measuring encoding
-cost rather than processing cost.
+**Final answer:** using xlm-roberta, tokens-per-sentence shows hindi is
+about 1.25x more expensive than english, tamil about 1.35x, telugu
+about 1.32x. This is the number I'm reporting as the main finding.
+Word and grapheme back this up since they show similar small numbers.
+Byte is mentioned separately since it's measuring something different
+(storage cost, not processing cost).
 
-This reverses REPORT_v0's recommendation: rather than "budget 6x extra
-serving cost and route to a separate Indian model," the evidence
-suggests switching to a multilingual tokenizer resolves most of the
-apparent cost gap on its own.
+This is very different from what REPORT_v0 said. They said Hindi costs
+6x more and we should build a whole separate system for it. What we
+found says: most of that extra cost was because they used the wrong
+tokenizer (gpt2). If you just switch to a proper multilingual
+tokenizer, most of the problem goes away on its own.
