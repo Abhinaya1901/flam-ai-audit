@@ -186,20 +186,15 @@ tel word=1.70x graph=2.05x byte=0.49x sent=1.32x
 Tokenizer choice changes the headline conclusion far more than
 denominator choice does. gpt2 shows huge, alarming gaps (Tamil up to
 20x worse than English); xlm-roberta shows much smaller gaps (Hindi
-~1.06x-1.81x, Tamil/Telugu ~1.7x-2.0x depending on denominator) across
+1.06x-1.81x, Tamil/Telugu 1.7x-2.0x depending on denominator) across
 every denominator tested. This strongly suggests REPORT_v0's "6x worse"
 conclusion is largely an artifact of testing with an English-centric
 tokenizer, not a fundamental property of these languages.
 
-Notably, byte-based ratios with xlm-roberta fall *below* 1.0 (0.42x-
-0.49x) for all three Indic languages — despite Indic scripts using more
+Notably, byte-based ratios with xlm-roberta fall below 1.0 (0.42x-
+0.49x) for all three Indian languages — despite Indian scripts using more
 bytes per character in UTF-8 than Latin script, xlm-roberta still uses
 fewer tokens per byte than English, because it tokenizes these scripts
-efficiently. This shows byte-based cost and token-based cost can point
+efficiently. This shows byte based cost and token based cost can point
 in opposite directions depending on tokenizer quality.
 
-### Next step
-Decide and justify which single metric should drive a real
-routing/cost decision (A3's final required question) — reasoning to be
-developed in the A4 recommendation memo, since actual serving cost
-scales with tokens processed, not words/bytes/graphemes as such.
