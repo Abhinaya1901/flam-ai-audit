@@ -1,7 +1,7 @@
 ## Reproduced baseline
 
 Ran the original script exactly as given:
-`python fertility.py --corpus english=eng_sample.txt --corpus hindi=hin_sample.txt --tokenizer gpt2`
+python fertility.py --corpus english=eng_sample.txt -corpus hindi=hin_sample.txt -tokenizer gpt2
 Output matched REPORT_v0.md exactly: english=1.27, hindi=7.45.
 This confirms the report's numbers are reproducible from the script as it is.
 
@@ -10,7 +10,7 @@ This confirms the report's numbers are reproducible from the script as it is.
 Noticed eng_sample.txt line 7 has a double space:
 "Please keep the books  in the cupboard."
 Tested `line.split(" ")` in a Python shell:
-Result: ['please', 'keep', 'the', 'books', '', 'in', 'the', 'cupboard.']
+Result: ['please', 'keep', 'the', 'books', ' ', 'in', 'the', 'cupboard.']
 Finding: the double space produces an empty string '' counted as a "word",
 increasing len(words) from 7 to 8.
 This makes fertility.py divide by an increased denominator on that line,
@@ -78,9 +78,9 @@ more length-varied FLORES corpus in A3.
 
 Original plan (openlanguagedata/flores_plus) was a gated dataset requiring
 HuggingFace login/terms acceptance — used Muennighoff/flores200 public
-mirror instead (had to downgrade `datasets` library to 2.19.0 since this
-dataset uses an older loading-script format the newest library version
-no longer supports).
+mirror instead but had to downgrade 'datasets' library to 2.19.0 since this
+dataset uses an older loading script format the newest library version
+no longer supports.
 Downloaded dev (997 sentences) and devtest (1012 sentences) splits for
 english, hindi, tamil, telugu.
 Verified first 3 lines by eye across all 4 files — confirmed genuinely
