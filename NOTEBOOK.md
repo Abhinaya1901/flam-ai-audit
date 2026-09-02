@@ -149,3 +149,57 @@ messier real-world text, not reduce it.
   script. Zero numeric effect — likely leftover from a removed step
   (possibly random sampling of a larger source corpus). Code-quality
   observation only, not a correctness bug.
+
+## A3 — Corrected analysis: 2 tokenizers × 4 denominators × 4 languages
+
+Ran a3_analysis.py on the real FLORES devtest corpus (1012 sentences/
+language, held-out split reserved for final numbers), comparing gpt2
+(English only trained) against xlm-roberta-base (multilingual
+SentencePiece tokenizer, trained on 100 languages including Hindi,
+Tamil, Telugu), across four denominators: tok/word, tok/grapheme,
+tok/byte, tok/sentence.
+
+### Raw results
+
+| tokenizer   | lang | tok/word | tok/graph | tok/byte | tok/sent |
+|---|---|---|---|---|---|
+| gpt2        | eng  | 1.235    | 0.205     | 0.2047   | 26.72    |
+| gpt2        | hin  | 7.818    | 2.209     | 0.5947   | 198.09   |
+| gpt2        | tam  | 25.048   | 4.213     | 0.9965   | 415.19   |
+| gpt2        | tel  | 20.709   | 4.138     | 0.9918   | 346.60   |
+| xlm-roberta | eng  | 1.400    | 0.232     | 0.2321   | 30.30    |
+| xlm-roberta | hin  | 1.491    | 0.421     | 0.1134   | 37.77    |
+| xlm-roberta | tam  | 2.465    | 0.415     | 0.0981   | 40.87    |
+| xlm-roberta | tel  | 2.384    | 0.476     | 0.1142   | 39.90    |
+
+### Ratios vs English
+
+**gpt2:** hin word=6.33x graph=10.78x byte=2.90x sent=7.41x
+tam word=20.28x graph=20.56x byte=4.87x sent=15.54x
+tel word=16.77x graph=20.19x byte=4.84x sent=12.97x
+
+**xlm-roberta:** hin word=1.06x graph=1.81x byte=0.49x sent=1.25x
+tam word=1.76x graph=1.78x byte=0.42x sent=1.35x
+tel word=1.70x graph=2.05x byte=0.49x sent=1.32x
+
+### Key finding
+Tokenizer choice changes the headline conclusion far more than
+denominator choice does. gpt2 shows huge, alarming gaps (Tamil up to
+20x worse than English); xlm-roberta shows much smaller gaps (Hindi
+~1.06x-1.81x, Tamil/Telugu ~1.7x-2.0x depending on denominator) across
+every denominator tested. This strongly suggests REPORT_v0's "6x worse"
+conclusion is largely an artifact of testing with an English-centric
+tokenizer, not a fundamental property of these languages.
+
+Notably, byte-based ratios with xlm-roberta fall *below* 1.0 (0.42x-
+0.49x) for all three Indic languages — despite Indic scripts using more
+bytes per character in UTF-8 than Latin script, xlm-roberta still uses
+fewer tokens per byte than English, because it tokenizes these scripts
+efficiently. This shows byte-based cost and token-based cost can point
+in opposite directions depending on tokenizer quality.
+
+### Next step
+Decide and justify which single metric should drive a real
+routing/cost decision (A3's final required question) — reasoning to be
+developed in the A4 recommendation memo, since actual serving cost
+scales with tokens processed, not words/bytes/graphemes as such.
