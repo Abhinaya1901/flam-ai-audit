@@ -64,6 +64,22 @@ This directly undermines REPORT_v0's claim that tok/char "independently
 confirms" the tok/word finding and that "no further measurement is
 needed" — the tok/char metric itself was significantly distorted.
 
+## Extended bug 3 — checked Tamil and Telugu, same pattern confirmed and worse
+
+Ran the same codepoint-vs-grapheme check (grapheme library) across all
+four FLORES dev corpora.
+Results: English ratio=1.000 (zero distortion, confirms mechanism is
+script-specific, not universal). Hindi ratio=1.440. Tamil ratio=1.547.
+Telugu ratio=1.566 — Telugu is actually the most affected language,
+worse than Hindi.
+Conclusion: chars = len(line) is structurally broken for all three
+Brahmic scripts tested, not just Hindi, and the degree of distortion
+varies unpredictably (1.44x-1.57x) across languages. This means
+tok/char is unreliable not only for Indic-vs-English comparisons but
+also for comparing Indic languages against each other — a routing
+decision between Hindi, Tamil, and Telugu traffic using tok/char would
+itself be built on inconsistent measurement errors.
+
 ## Checked NFC normalization — looks suspicious, but is fine
 
 Tested removing NFC normalization in fertility_no_nfc.py.
