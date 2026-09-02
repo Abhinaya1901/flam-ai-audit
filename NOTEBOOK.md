@@ -198,3 +198,41 @@ fewer tokens per byte than English, because it tokenizes these scripts
 efficiently. This shows byte based cost and token based cost can point
 in opposite directions depending on tokenizer quality.
 
+## A3 — Final question: which single metric should drive the decision?
+
+Comparing xlm-roberta ratios across all four denominators (word, grapheme,
+byte, sentence) shows word, grapheme, and sentence all converge on a
+similar, much smaller gap (roughly 1.0x-2.1x) once a proper multilingual
+tokenizer is used a sharp contrast to gpt2's inflated 6x-20x gaps.
+Byte is the outlier, falling *below* 1.0 for all three Indian languages.
+
+Considered which single number to recommend:
+- tok/word: disqualified despite looking reasonable here — already
+  proved (conceptual bug, A2) that "word" isn't a fair, language-neutral
+  unit in principle. Using it here just because the number happens to
+  look convenient would be inconsistent with that earlier finding.
+- tok/grapheme: principled (uses true character counts, not the
+  overcounted codepoints from bug 3) and gives a similar, consistent
+  answer. Strong second choice.
+- tok/byte: actively misleading here — it measures Unicode encoding
+  overhead (how many bytes a script needs to store one character), not
+  processing cost. Disagrees with the other three metrics because it's
+  measuring a genuinely different thing (storage/transfer cost, not
+  compute cost).
+- tok/sentence: chosen as the headline metric. Since the corpus is a
+  professionally translated, truly parallel set (same content, sentence-
+  for-sentence, across all languages), this metric sidesteps the entire
+  "what counts as a fair word/character" debate — it directly answers
+  "for saying the same thing, how many tokens does each language need?"
+  with no assumptions about linguistic units required.
+
+**Conclusion:** with xlm-roberta, tok/sentence ratios vs English are
+hin=1.25x, tam=1.35x, tel=1.32x. Recommend reporting this as the
+headline number, with grapheme and word ratios cited as supporting/
+convergent evidence, and byte explicitly flagged as measuring encoding
+cost rather than processing cost.
+
+This reverses REPORT_v0's recommendation: rather than "budget 6x extra
+serving cost and route to a separate Indian model," the evidence
+suggests switching to a multilingual tokenizer resolves most of the
+apparent cost gap on its own.
