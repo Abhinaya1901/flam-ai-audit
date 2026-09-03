@@ -21,13 +21,26 @@ Across all 28 layers:
 ## (b) Maximum concurrent 4096-token sequences
 
 ### GPU capacity available for KV cache
-Total GPU memory: 24 GB = 24,000,000,000 bytes
-After 92% utilization: 24,000,000,000 × 0.92 = 22,080,000,000 bytes
-Minus model weights: 4.2B params × 2 bytes = 8,400,000,000 bytes
-22,080,000,000 − 8,400,000,000 = 13,680,000,000 bytes
-Minus overhead (1.6 GB): 13,680,000,000 − 1,600,000,000 = 12,080,000,000 bytes
-available for KV cache
 
+Total GPU memory:
+24 GB = 24,000,000,000 bytes
+
+After 92% utilization:
+24,000,000,000 × 0.92 = 22,080,000,000 bytes
+
+Model weights:
+4.2B params × 2 bytes = 8,400,000,000 bytes
+
+Subtract model weights:
+22,080,000,000 − 8,400,000,000 = 13,680,000,000 bytes
+
+Overhead:
+1.6 GB = 1,600,000,000 bytes
+
+Subtract overhead:
+13,680,000,000 − 1,600,000,000 = 12,080,000,000 bytes
+
+**Result: 12,080,000,000 bytes available for KV cache**
 Note: a naive calculation that skips subtracting the model's own
 weights would estimate ~43-47 sequences. This does not match the log's
 implied capacity (25.8), which shows why model weights
