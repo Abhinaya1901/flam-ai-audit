@@ -41,7 +41,9 @@ Subtract overhead:
 13,680,000,000 − 1,600,000,000 = 12,080,000,000 bytes
 
 **Result: 12,080,000,000 bytes available for KV cache**
-Note: a naive calculation that skips subtracting the model's own
+
+
+#Note: a naive calculation that skips subtracting the model's own
 weights would estimate ~43-47 sequences. This does not match the log's
 implied capacity (25.8), which shows why model weights
 must be subtracted they occupy a large, fixed share of GPU memory
