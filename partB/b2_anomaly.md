@@ -32,7 +32,17 @@ throughput as batch size grows past capacity (7 preemptions at batch
 
 ## Proposed change
 
-Cap scheduler batch size for long-prompt requests at 25 sequences
-(the B1 capacity limit). Predicted effect: eliminates preemption-driven
+Cap scheduler (not letting GPU allow requests more than 25) batch size for long prompt requests at 25 sequences(the B1 capacity limit). Predicted effect: eliminates preemption-driven
 rework, sustaining throughput near its observed peak (1,600 tok/s at
 batch 24) instead of degrading to 1,300 tok/s at batch 48.
+
+## Alternatives considered
+
+Two other fixes are possible: (1) use a bigger GPU (more memory), so
+more requests fit before running out of space, or (2) make each
+token's saved data smaller (compression), so more requests fit in the
+same memory. Not using these: (1) costs more money and doesn't fix the
+actual scheduling problem, and (2) needs real engineering work and
+could affect accuracy, which we haven't tested. The batch cap is
+simplest and cheapest, and directly matches the number we already
+calculated in B1.
