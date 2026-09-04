@@ -22,7 +22,7 @@ Decided which one to actually use:
 **Why word and sentence don't fully agree, even for the same
 language.** For Hindi, word gives 1.06x but sentence gives 1.25x — a
 real gap, not noise. Hindi sentences in this corpus use more
-space-separated words on average than the matching English sentences
+space separated words on average than the matching English sentences
 do, because things English folds into one word (like "for the", "to
 the") are often written as extra separate words in Hindi. So a Hindi
 sentence's token count gets divided by a bigger word count, which
