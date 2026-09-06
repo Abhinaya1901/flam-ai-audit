@@ -1,49 +1,38 @@
 ## A2 — Script/Metric Audit (fertility.py)
 
-**Baseline reproduced.** Ran the original script exactly as given on
-the toy corpus (`eng_sample.txt`, `hin_sample.txt`). Output matched
-REPORT_v0.md exactly: eng=1.27, hin=7.45, ratio=5.89x. Confirms the
-report's numbers are reproducible from the script as-is.
+**Baseline reproduced.** Original script on the toy corpus matches
+REPORT_v0.md exactly: eng=1.27, hin=7.45, ratio=5.89x.
 
 ### Bug 1 — double space inflates word count
-`eng_sample.txt` line 7 has a double space ("...the books  in the
-cupboard."). Tested `line.split(" ")` directly: produces
-`['...', 'books', '', 'in', ...]` — the double space creates a fake
-empty-string "word," inflating `len(words)` from 7 to 8. Since fertility
-divides tokens by `len(words)`, this understates fertility on affected
-lines. Confirmed the same issue exists in `hin_sample.txt` line 10.
+`eng_sample.txt` line 7 has a double space; `line.split(" ")` turns it
+into a fake empty-string "word," inflating `len(words)`. Same issue in
+`hin_sample.txt` line 10. Isolated fix (`split(" ")` → `split()`):
+- Toy corpus: eng 1.27→1.28, hin 7.45→7.60, ratio 5.89x→5.92x
+- Real FLORES corpus (997 lines): ratio 6.093x→6.094x — smaller effect
+  at scale, not larger
 
-Isolated the fix (`split(" ")` → `split()`) and measured:
-- Toy corpus: eng=1.27→1.28, hin=7.45→7.60, ratio 5.89x→5.92x
-- Real FLORES corpus (997 lines): ratio 6.093x→6.094x — even smaller
-  effect than on the toy corpus, contradicting my initial guess that
-  more lines would mean a bigger effect.
-
-**Verdict:** real, confirmed bug — but negligible impact at any scale
+**Verdict:** real, confirmed bug — negligible impact at any scale
 tested.
 
 ### Bug 2 — `.lower()` understates the true Hindi/English gap
-Removed `line = line.lower()` and measured:
-- Toy corpus: eng=1.27→1.23, hin unchanged (7.45), ratio 5.89x→6.06x
-- Real FLORES corpus: ratio 6.093x→6.318x — effect held and slightly
-  strengthened at scale
+Removing `line = line.lower()`:
+- Toy corpus: eng 1.27→1.23, hin unchanged (7.45), ratio 5.89x→6.06x
+- Real FLORES corpus: ratio 6.093x→6.318x — held and strengthened at
+  scale
 
-Hindi is completely unaffected by removing `.lower()` since Devanagari
-has no uppercase/lowercase distinction, which confirms the mechanism.
-English fertility drops without lowercasing because capitalized words
-like "NASA" and "GPU" are more likely to be recognized as single GPT-2
-tokens. The ratio gets **worse**, not better, meaning the original
-report's `.lower()` step was understating the true gap, not the other
-way around.
+Hindi is unaffected since Devanagari has no case distinction —
+confirms the mechanism. English fertility drops without lowercasing
+because capitalized words (e.g. "NASA", "GPU") are more likely to be
+single GPT-2 tokens. The ratio gets **worse**, not better — the
+report's `.lower()` step was understating the true gap.
 
 **Verdict:** real, robust, materially important — strong finding.
 
 ### Bug 3 — `chars = len(line)` counts codepoints, not real characters
-`len(line)` counts Unicode codepoints. Devanagari, Tamil, and Telugu all
-combine a base consonant with a separate vowel-sign codepoint to form
-one visual character (grapheme) — so `len()` overcounts "characters" for
-these scripts. Tested using the `grapheme` library on the real FLORES
-`dev` corpus, comparing codepoint count vs. true grapheme count:
+Devanagari/Tamil/Telugu combine a base consonant + vowel-sign
+codepoint into one visual character (grapheme), so `len()` overcounts
+"characters" for these scripts. Codepoint vs. true grapheme count
+(FLORES `dev`, via the `grapheme` library):
 
 | language | codepoints | graphemes | ratio |
 |---|---|---|---|
@@ -52,52 +41,35 @@ these scripts. Tested using the `grapheme` library on the real FLORES
 | Tamil | 146,128 | 94,467 | 1.547 |
 | Telugu | 127,176 | 81,234 | 1.566 |
 
-English's ratio of exactly 1.000 confirms this is a script-specific
-encoding artifact, not a general issue. All three Indian scripts
-overcount substantially, and the degree varies unpredictably between
-them (Telugu is worst, not Hindi).
+English's exact 1.000 confirms this is script-specific, not general.
+All three Indian scripts overcount, and the degree varies
+unpredictably (Telugu worst, not Hindi).
 
-Recomputing with true graphemes: reported hin tok/char of 1.579
-corresponds to a true tok/grapheme of ~2.274, shifting the report's
-"7.0x worse per character" claim to a corrected **~10.1x**.
+Recomputed: reported hin tok/char of 1.579 → true tok/grapheme ~2.274,
+shifting REPORT_v0's "7.0x worse per character" claim to **~10.1x**.
 
-**Verdict:** strongest finding overall. Directly disproves REPORT_v0's
-claim that tok/char "independently confirms" tok/word and that "no
-further measurement is needed" — the tok/char metric itself was
-significantly distorted, in a way that understated the true gap. Also
-shows tok/char is unreliable even for comparing Indian languages against
-each other, not just against English.
+**Verdict:** strongest finding. Disproves REPORT_v0's claim that
+tok/char "independently confirms" tok/word — the metric itself was
+distorted, understating the true gap, and is unreliable even between
+Indian languages, not just vs. English.
 
 ### Conceptual bug — "words" is not a language-neutral denominator
-Tested tokens-per-sentence instead of tokens-per-word on the exact same
-tokenized toy-corpus text, to see if the choice of denominator itself
-was distorting the comparison: per-word ratio = 5.89x, per-sentence
-ratio = 4.64x. Same tokens, different denominator, meaningfully
-different headline number. This proves "words" is not a fair,
-language-neutral unit of content — some languages pack more grammatical
-meaning into fewer whitespace-separated words than others. It also
-means the report's claim that tok/char "independently confirms" tok/word
-is weaker than it looks, since both denominators share this same
-underlying assumption problem — agreement between them isn't real
-independent validation.
+Tokens-per-sentence vs. tokens-per-word on the same tokenized text:
+per-word ratio = 5.89x, per-sentence ratio = 4.64x. Same tokens,
+different denominator, materially different headline number — "words"
+is not a fair, language-neutral unit; some languages pack more
+grammatical meaning into fewer whitespace-separated words. Also
+weakens REPORT_v0's "tok/char independently confirms tok/word" claim,
+since both denominators share this same assumption problem.
 
 ### Checked — NFC normalization (looks suspicious, but is fine)
-`unicodedata.normalize("NFC", line)` visibly mutates the input text
-before analysis, which looks alarming on first read (same category of
-suspicion as the `.lower()` line). Removing it: zero change in output
-(eng=1.27, hin=7.45, ratio=5.89x, identical to baseline). This is
-standard defensive practice against inconsistent Unicode encoding of
-visually identical characters across different real-world text sources.
-**Should not be flagged as a bug** — removing it would only add risk on
-messier real-world text, not reduce it.
+Removing `unicodedata.normalize("NFC", line)`: zero change in output
+(identical to baseline). Standard defensive practice against
+inconsistent Unicode encoding across real-world sources. **Not a
+bug** — removing it only adds risk on messier real-world text.
 
-### Minor checks (low priority — mentioned for completeness, not headline findings)
-- **Macro vs. micro averaging:** script averages per-line ratios equally
-  (macro), rather than pooling total tokens / total words (micro).
-  Tested both on toy corpus: macro=7.448, micro=7.403 — only ~0.6%
-  difference, since sentence lengths don't vary much in the toy sample.
-- **Unused imports:** `random` and `sys` are imported and
-  `random.seed(1337)` is set, but neither is ever used anywhere in the
-  script. Zero numeric effect — likely leftover from a removed step
-  (possibly random sampling of a larger source corpus). Code-quality
-  observation only, not a correctness bug.
+### Minor checks (low priority)
+- **Macro vs. micro averaging:** macro=7.448, micro=7.403 — ~0.6%
+  difference on the toy corpus.
+- **Unused imports:** `random`/`sys` imported, `random.seed(1337)` set,
+  never used. Zero numeric effect — code-quality note only.
