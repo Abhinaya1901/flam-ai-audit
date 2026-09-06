@@ -219,6 +219,21 @@ Decided which one to actually use:
   — we can just directly compare: same sentence, how many tokens does
   each language need?
 
+**Why word and sentence don't fully agree, even for the same
+language.** For Hindi, word gives 1.06x but sentence gives 1.25x — a
+real gap, not noise. Hindi sentences in this corpus use more
+space-separated words on average than the matching English sentences
+do, because things English folds into one word (like "for the", "to
+the") are often written as extra separate words in Hindi. So a Hindi
+sentence's token count gets divided by a bigger word count, which
+quietly shrinks the word ratio. Sentence count doesn't have this
+problem — it's fixed at exactly 1 per line no matter the language.
+This is another reason to trust sentence over word: word isn't just
+"less clean" in theory, it's actually understating the gap here in a
+way we can point to. (Noticed this gap only after re-reading the ratio
+table a second time — first pass, I nearly reported word and sentence
+as "basically agreeing," which they don't, quantitatively.)
+
 **Final answer:** using xlm-roberta, tokens-per-sentence shows hindi is
 about 1.25x more expensive than english, tamil about 1.35x, telugu
 about 1.32x. This is the number I'm reporting as the main finding.
@@ -267,3 +282,101 @@ Wikipedia-style text) doesn't match how people actually chat. And (2)
 actual GPU cost per request — since token count is just a stand-in for
 real cost, checking that both match up confirms our numbers actually
 translate into real savings, not just numbers on paper.
+
+---
+
+## B1 — KV-cache Math
+
+First attempt: computed max concurrent sequences using only
+gpu_memory_utilization (0.92) and overhead (1.6GB), without subtracting
+model weights. Got ~43-47 sequences. Checked this against the log's
+implied capacity (batch ÷ kv_cache_util at prompt_len=3584+gen_len=512
+rows) — log consistently implies ~25.8. Way off. This was the dead
+end: forgot that the model's own weights (4.2B params × 2 bytes =
+8.4GB) sit in GPU memory before any KV cache can be allocated at all.
+
+Redid it subtracting weights: 24GB × 0.92 = 22.08GB, minus 8.4GB
+weights, minus 1.6GB overhead = 12.08GB for KV cache. Per-token cost:
+8 KV heads × 128 head_dim × 2 (K+V) × 2 bytes × 28 layers = 114,688
+bytes/token. 12.08GB ÷ 114,688 bytes ÷ 4096 tokens/seq ≈ 25.7 sequences
+— matches the log's ~25.8 almost exactly.
+
+Also checked decimal GB vs binary GiB as an alternate hypothesis for
+why the naive calc was off — decimal gives 25.7 (matches), GiB would
+give ~28.9 (worse match). Confirms decimal GB is the right convention,
+matching how model_spec.md states GPU capacity.
+
+## B2 — Throughput Anomaly
+
+Reported_tok_s peaks at batch 24 (1607.4) then falls at batch 32
+(1384.0) and 48 (1298.5), despite preempted_seqs going from 0 to 7 to
+23 over that same range, and kv_cache_util maxing out at 0.93-0.97.
+Batch 24 = ~93% utilization with zero preemptions, right at the B1
+capacity ceiling (~25-26 sequences). Past that, the scheduler has to
+preempt (evict + later resume) sequences, and resumed sequences must
+re-run prefill — wasted work that eats wall-clock time without
+producing new tokens.
+
+Initial write-up said "reported_tok_s = tokens completed ÷ elapsed
+time" — this turned out to be wrong once B3 was done (see below).
+Fixed after cross-checking the two sections against each other.
+
+## B3 — The reported_tok_s misread
+
+Tested whether reported_tok_s counts only generated tokens or prompt+
+generated tokens together, using the batch-24 row (prompt=3584,
+gen=512, 24 requests, wall_clock=61.16s):
+- gen-only hypothesis: 24×512/61.16 = 200.9 — doesn't match reported
+  1607.4
+- prompt+gen hypothesis: 24×4096/61.16 = 1607.5 — matches almost
+  exactly
+
+This directly contradicted the definition I'd written in B2 ("tokens
+completed"). Went back and fixed B2's wording once this was confirmed,
+since the two sections can't both be right.
+
+True goodput at batch 24 ≈ 201 tok/s (two independent derivations:
+direct from gen_len×requests/time, and reverse-engineered from
+reported_tok_s × gen_len/(prompt_len+gen_len) — both give ~200.9).
+This is ~8x lower than the quoted 1607 headline. Also checked
+short-prompt batch 16 goodput (16×256/13.91 ≈ 294.5) — higher than the
+long-prompt goodput, which reverses REPORT_v0's claim that long
+prompts give better throughput. And batch 48's true goodput
+(1298.5×0.125 ≈ 162) is lower than batch 24's, not the claimed ~3200 —
+so the "linear scaling" extrapolation in REPORT_v0 is wrong on top of
+using the wrong base number.
+
+## B4 — Production confirmation metric
+
+Given the log's column names already look like vLLM-style scheduler
+stats (preempted_seqs, kv_cache_util), the real-world equivalent to
+watch would be a live preemption counter (e.g. vLLM's
+num_preemptions_total) alongside KV cache utilization — expect it to
+sit near 0 below ~93% utilization then jump sharply past ~95-97%,
+mirroring the log's 0→7→23 pattern.
+
+## Part C — Decision Memo
+
+First draft of the day-1 experiment said "3-5 prompt variants" and "2
+reviewer hours" in the same paragraph — didn't actually check the
+arithmetic. 4-5 variants × 20 examples × 2 min/example doesn't fit in
+2 hours (comes out to 2h40-3h20). Fixed to a fixed 3 variants × 20 =
+60 examples × 2 min = exactly 2 hours.
+
+Also initially claimed fallback training would take "probably well
+under a day" on the A100 with no measurement behind it — caught this
+as an unearned confidence claim (violates the same evidence rule
+everything else in this project is held to) and changed it to "measure
+via a short pilot, then extrapolate" instead of asserting a number.
+
+Missed serving cost for option (b) entirely on the first pass, even
+though the assignment explicitly lists "training or serving cost" —
+added a line acknowledging the rewriter adds a second inference pass
+per response, to be measured in the fallback pilot rather than assumed
+negligible.
+
+Chose 80%/60% as the success/kill thresholds and 2 min/example as the
+review-speed assumption. These are judgment calls, not derived from
+the assignment or from any measurement — worth being upfront about
+this specifically if asked "why 60, why not 50" in the defense, rather
+than inventing a post-hoc justification.
