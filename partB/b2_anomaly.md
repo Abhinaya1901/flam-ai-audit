@@ -25,14 +25,25 @@ batch size past that (32, 48) forces the scheduler to preempt sequences
 (evict and later resume them), since there isn't enough memory to hold
 them all. Preempted sequences must recompute work already done before
 eviction — wasted computation that consumes real time but produces no
-new completed tokens. Since `reported_tok_s` = tokens completed ÷
-elapsed time, this wasted rework directly lowers the measured
-throughput as batch size grows past capacity (7 preemptions at batch
-32, 23 at batch 48).
+new completed tokens.
+
+`reported_tok_s` counts total tokens processed — prompt tokens plus
+generated tokens — divided by elapsed time, not just newly generated
+tokens. Confirmed using the batch-24 row above (wall_clock_s = 61.16
+from the raw log): 24 × (3584 + 512) / 61.16 = 1607.5, matching the
+reported 1,607.4 almost exactly. If the column only counted generated
+tokens, it would instead be 24 × 512 / 61.16 = 200.9 — far off from
+what's reported. Preemption still lowers this number even though it's
+the inflated metric, not the true generation rate: a preempted
+sequence has to re-run prefill on resume, and that re-run consumes
+wall-clock time without producing any tokens (prompt or generated) to
+count toward the numerator, so the denominator grows faster than the
+numerator and the ratio falls (7 preemptions at batch 32, 23 at batch 48).
 
 ## Proposed change
 
-Cap scheduler (not letting GPU allow requests more than 25) batch size for long prompt requests at 25 sequences(the B1 capacity limit). Predicted effect: eliminates preemption-driven
+Cap scheduler batch size for long-prompt requests at 25 sequences (the
+B1 capacity limit). Predicted effect: eliminates preemption-driven
 rework, sustaining throughput near its observed peak (1,600 tok/s at
 batch 24) instead of degrading to 1,300 tok/s at batch 48.
 
